@@ -19,6 +19,7 @@ import {
   createPlayerShip,
   createEnemyTemplates,
   createBulletTemplate,
+  createGateTemplate,
 } from "./meshFactory.ts";
 import { EntityPool } from "./EntityPool.ts";
 import { EffectsManager } from "./effects.ts";
@@ -28,6 +29,9 @@ import {
   CAMERA_FOV,
   CAMERA_SWAY_AMPLITUDE,
   CAMERA_SWAY_SPEED,
+  NORMAL_AMBIENT_INTENSITY,
+  WARP_AMBIENT_INTENSITY,
+  WARP_SWAY_MULTIPLIER,
 } from "./constants.ts";
 
 export class Renderer {
@@ -35,6 +39,7 @@ export class Renderer {
   private readonly scene: Scene;
   private readonly camera: FreeCamera;
   private readonly config: Readonly<GameConfig>;
+  private readonly ambientLight: HemisphericLight;
 
   // Theme-owned (rebuilt on setTheme)
   private theme: Theme;
@@ -44,8 +49,12 @@ export class Renderer {
   private playerNode: TransformNode;
   private enemyTemplates: Record<string, TransformNode>;
   private bulletTemplate: Mesh;
+  private gateTemplate: Mesh;
   private entityPool: EntityPool;
   private effects: EffectsManager;
+
+  // Warp visual state
+  private warpActive = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -75,12 +84,12 @@ export class Renderer {
     this.camera.fov = CAMERA_FOV;
 
     // ── Lighting (dim ambient — emissive materials dominate)
-    const ambient = new HemisphericLight(
+    this.ambientLight = new HemisphericLight(
       "ambient",
       new Vector3(0, 1, 0),
       this.scene,
     );
-    ambient.intensity = 0.15;
+    this.ambientLight.intensity = NORMAL_AMBIENT_INTENSITY;
 
     // ── Apply theme ───────────────────────────────────────
     theme.applyToScene(this.scene, this.camera);
@@ -100,9 +109,11 @@ export class Renderer {
     // ── Entity pool ───────────────────────────────────────
     this.enemyTemplates = createEnemyTemplates(this.scene, this.materials);
     this.bulletTemplate = createBulletTemplate(this.scene, this.materials);
+    this.gateTemplate = createGateTemplate(this.scene, this.materials);
     this.entityPool = new EntityPool(
       this.enemyTemplates,
       this.bulletTemplate,
+      this.gateTemplate,
       this.scene,
       this.materials,
       config.lanes,
@@ -157,19 +168,22 @@ export class Renderer {
       this.materials,
     );
 
-    // 6. Rebuild enemy/bullet templates
+    // 6. Rebuild enemy/bullet/gate templates
     for (const tmpl of Object.values(this.enemyTemplates)) {
       tmpl.dispose(false, true);
     }
     this.bulletTemplate.dispose();
+    this.gateTemplate.dispose();
 
     this.enemyTemplates = createEnemyTemplates(this.scene, this.materials);
     this.bulletTemplate = createBulletTemplate(this.scene, this.materials);
+    this.gateTemplate = createGateTemplate(this.scene, this.materials);
 
     // 7. Rebuild entity pool (disposes all clones, swaps refs)
     this.entityPool.rebuild(
       this.enemyTemplates,
       this.bulletTemplate,
+      this.gateTemplate,
       this.materials,
     );
 
@@ -200,6 +214,7 @@ export class Renderer {
     // 3. Entities
     this.entityPool.syncEnemies(state.enemies, alpha, fixedDt);
     this.entityPool.syncBullets(state.bullets, alpha, fixedDt);
+    this.entityPool.syncGates(state.gates);
 
     // 4. Camera sway
     this.updateCameraSway(state.elapsed);
@@ -232,6 +247,15 @@ export class Renderer {
         case GameEventKind.BulletFired:
           this.effects.spawnMuzzleFlash(ev.laneIndex);
           break;
+        case GameEventKind.GateHit:
+          this.effects.spawnKillRing(ev.laneIndex, ev.z);
+          break;
+        case GameEventKind.WarpStarted:
+          this.enterWarp();
+          break;
+        case GameEventKind.WarpEnded:
+          this.exitWarp();
+          break;
       }
     }
   }
@@ -249,8 +273,20 @@ export class Renderer {
   }
 
   private updateCameraSway(elapsed: number): void {
+    const amp = this.warpActive
+      ? CAMERA_SWAY_AMPLITUDE * WARP_SWAY_MULTIPLIER
+      : CAMERA_SWAY_AMPLITUDE;
     this.camera.rotation.z =
-      Math.sin(elapsed * CAMERA_SWAY_SPEED * 2 * Math.PI) *
-      CAMERA_SWAY_AMPLITUDE;
+      Math.sin(elapsed * CAMERA_SWAY_SPEED * 2 * Math.PI) * amp;
+  }
+
+  private enterWarp(): void {
+    this.warpActive = true;
+    this.ambientLight.intensity = WARP_AMBIENT_INTENSITY;
+  }
+
+  private exitWarp(): void {
+    this.warpActive = false;
+    this.ambientLight.intensity = NORMAL_AMBIENT_INTENSITY;
   }
 }

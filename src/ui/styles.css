@@ -117,6 +117,48 @@ body {
   letter-spacing: 1px;
 }
 
+/* ── Warp indicator ──────────────────────────────────────────── */
+
+.hud-warp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 48px;
+  font-weight: bold;
+  color: #0f0;
+  text-shadow:
+    0 0 12px #0f0,
+    0 0 30px rgba(0, 255, 0, 0.5),
+    0 0 60px rgba(0, 255, 0, 0.2);
+  letter-spacing: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  animation: none;
+}
+
+.hud-warp[data-visible="true"] {
+  opacity: 1;
+  animation: warp-pulse 0.6s ease-in-out infinite;
+}
+
+@keyframes warp-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    text-shadow:
+      0 0 12px #0f0,
+      0 0 30px rgba(0, 255, 0, 0.5);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.08);
+    text-shadow:
+      0 0 20px #0f0,
+      0 0 50px rgba(0, 255, 0, 0.6);
+  }
+}
+
 /* ── Game-over overlay ───────────────────────────────────────── */
 
 .hud-gameover {

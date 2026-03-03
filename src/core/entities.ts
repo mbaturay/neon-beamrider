@@ -1,4 +1,4 @@
-import type { EnemyEntity, BulletEntity, EnemyType } from "./types.ts";
+import type { EnemyEntity, BulletEntity, GateEntity, EnemyType } from "./types.ts";
 import { EntityTag } from "./types.ts";
 import type { EnemyTypeConfig, GameConfig } from "./config.ts";
 
@@ -35,6 +35,20 @@ export function createBullet(
     laneIndex,
     z: zStart,
     speed,
+    alive: true,
+  };
+}
+
+export function createGate(
+  id: number,
+  laneIndex: number,
+  z: number,
+): GateEntity {
+  return {
+    tag: EntityTag.Gate,
+    id,
+    laneIndex,
+    z,
     alive: true,
   };
 }
@@ -121,6 +135,46 @@ export function detectCollisions(
           });
         }
         break; // this bullet is spent; next bullet
+      }
+    }
+  }
+
+  return hits;
+}
+
+// ─── Gate collision detection ─────────────────────────────────
+
+export interface GateHitResult {
+  gateId: number;
+  laneIndex: number;
+  z: number;
+}
+
+/**
+ * Check alive bullets against alive gates.
+ * Same-lane, |Δz| < hitWindow. Each bullet hits at most one gate.
+ */
+export function detectGateCollisions(
+  gates: GateEntity[],
+  bullets: BulletEntity[],
+  hitWindow: number,
+): GateHitResult[] {
+  const hits: GateHitResult[] = [];
+
+  for (const b of bullets) {
+    if (!b.alive) continue;
+    for (const g of gates) {
+      if (!g.alive) continue;
+      if (b.laneIndex !== g.laneIndex) continue;
+      if (Math.abs(b.z - g.z) < hitWindow) {
+        g.alive = false;
+        b.alive = false;
+        hits.push({
+          gateId: g.id,
+          laneIndex: g.laneIndex,
+          z: g.z,
+        });
+        break;
       }
     }
   }

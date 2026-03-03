@@ -39,6 +39,13 @@ export interface GameConfig {
   readonly maxDifficulty: number;
   readonly enemyTypes: Record<EnemyType, EnemyTypeConfig>;
 
+  // Warp sequence
+  readonly warpInterval: number; // seconds of Normal before warp triggers
+  readonly warpDuration: number; // seconds the warp lasts
+  readonly gatePoints: number; // base points per gate hit
+  readonly gateSpawnInterval: number; // seconds between gate spawns during warp
+  readonly warpSpawnMultiplier: number; // enemy spawn rate multiplier during warp (< 1)
+
   // Fixed timestep
   readonly fixedDt: number; // seconds per simulation tick (1/60)
   readonly maxAccumulatedDt: number; // clamp to prevent spiral of death
@@ -72,6 +79,12 @@ export const DEFAULT_CONFIG: GameConfig = {
     Drifter: { speed: 10, hp: 1, points: 200, spawnWeight: 30 },
     Charger: { speed: 30, hp: 2, points: 500, spawnWeight: 10 },
   },
+
+  warpInterval: 45,
+  warpDuration: 6,
+  gatePoints: 300,
+  gateSpawnInterval: 0.8,
+  warpSpawnMultiplier: 0.3,
 
   fixedDt: 1 / 60,
   maxAccumulatedDt: 0.25,

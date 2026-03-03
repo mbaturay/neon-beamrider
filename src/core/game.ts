@@ -1,5 +1,5 @@
 import type { GameState, EnemyType } from "./types.ts";
-import { RunPhase } from "./types.ts";
+import { RunPhase, WarpPhase } from "./types.ts";
 import type { GameConfig } from "./config.ts";
 import { DEFAULT_CONFIG } from "./config.ts";
 import type { InputAction } from "./input.ts";
@@ -10,9 +10,11 @@ import { createPrng } from "./prng.ts";
 import {
   createEnemy,
   createBullet,
+  createGate,
   updateEnemies,
   updateBullets,
   detectCollisions,
+  detectGateCollisions,
   sweep,
 } from "./entities.ts";
 import type { SpawnDirector, SpawnCommand } from "./spawn.ts";
@@ -146,47 +148,70 @@ export class Game {
       this.config.maxDifficulty,
     );
 
-    // 2. Auto-fire / manual fire
+    // 2. Warp transitions
+    this.updateWarp(dt);
+
+    // 3. Auto-fire / manual fire
     this.handleFiring(dt);
 
-    // 3. Move bullets
+    // 4. Move bullets
     updateBullets(st.bullets, dt, this.config.zFar);
 
-    // 4. Spawn enemies
+    // 5. Spawn enemies (reduced during warp)
+    const spawnDt =
+      st.warpPhase === WarpPhase.Warp
+        ? dt * this.config.warpSpawnMultiplier
+        : dt;
     const spawns = this.spawnDirector.update(
-      dt,
+      spawnDt,
       st.elapsed,
       st.difficulty,
     );
     this.processSpawns(spawns);
 
-    // 5. Move enemies
+    // 6. Spawn gates (warp only)
+    this.spawnGates(dt);
+
+    // 7. Move enemies
     const reached = updateEnemies(
       st.enemies,
       dt,
       this.config.nearThreshold,
     );
 
-    // 6. Collision detection
+    // 8. Collision detection (bullet→enemy)
     const hits = detectCollisions(st.enemies, st.bullets, this.config);
 
-    // 7. Process kills (scoring, combos)
+    // 9. Collision detection (bullet→gate, warp only)
+    const gateHits = detectGateCollisions(
+      st.gates,
+      st.bullets,
+      this.config.hitWindow,
+    );
+
+    // 10. Process kills (scoring, combos)
     for (const hit of hits) {
       this.processKill(hit.enemyType, hit.enemyId, hit.laneIndex, hit.z);
     }
 
-    // 8. Enemy reached player → game over (MVP)
-    if (reached.length > 0) {
-      this.processPlayerHit(reached[0]);
-      return; // stop processing this step
+    // 11. Process gate hits (bonus scoring)
+    for (const hit of gateHits) {
+      this.processGateHit(hit.gateId, hit.laneIndex, hit.z);
     }
 
-    // 9. Decay combo timer
+    // 12. Enemy reached player → game over
+    if (reached.length > 0) {
+      this.processPlayerHit(reached[0]);
+      return;
+    }
+
+    // 13. Decay combo timer
     this.decayCombo(dt);
 
-    // 10. Sweep dead entities
+    // 14. Sweep dead entities
     sweep(st.enemies);
     sweep(st.bullets);
+    sweep(st.gates);
   }
 
   // ── Firing ───────────────────────────────────────────────────
@@ -322,6 +347,91 @@ export class Game {
     });
   }
 
+  // ── Warp sequence ───────────────────────────────────────────
+
+  private updateWarp(dt: number): void {
+    const st = this.state;
+    st.warpTimer -= dt;
+
+    if (st.warpPhase === WarpPhase.Normal && st.warpTimer <= 0) {
+      // Enter warp
+      st.warpPhase = WarpPhase.Warp;
+      st.warpTimer = this.config.warpDuration;
+      st.gateSpawnAccumulator = 0;
+      this.eventQueue.push({ kind: GameEventKind.WarpStarted });
+    } else if (st.warpPhase === WarpPhase.Warp && st.warpTimer <= 0) {
+      // Exit warp — kill remaining gates
+      st.warpPhase = WarpPhase.Normal;
+      st.warpTimer = this.config.warpInterval;
+      for (const g of st.gates) g.alive = false;
+      sweep(st.gates);
+      this.eventQueue.push({ kind: GameEventKind.WarpEnded });
+    }
+  }
+
+  private spawnGates(dt: number): void {
+    const st = this.state;
+    if (st.warpPhase !== WarpPhase.Warp) return;
+
+    st.gateSpawnAccumulator += dt;
+    if (st.gateSpawnAccumulator >= this.config.gateSpawnInterval) {
+      st.gateSpawnAccumulator -= this.config.gateSpawnInterval;
+      const laneIndex = Math.floor(this.random() * this.config.lanes);
+      const z = 30 + this.random() * 70; // spread across visible tube
+      const id = st.nextEntityId++;
+      st.gates.push(createGate(id, laneIndex, z));
+    }
+  }
+
+  private processGateHit(
+    gateId: number,
+    laneIndex: number,
+    z: number,
+  ): void {
+    const player = this.state.player;
+    const points = this.config.gatePoints * player.multiplier;
+
+    // Extend combo
+    player.comboCount += 1;
+    player.comboTimer = this.config.comboWindowSeconds;
+
+    // Recalculate multiplier
+    let newMultiplier = 1;
+    for (const threshold of this.config.multiplierThresholds) {
+      if (player.comboCount >= threshold) {
+        newMultiplier += 1;
+      } else {
+        break;
+      }
+    }
+    const multiplierChanged = player.multiplier !== newMultiplier;
+    player.multiplier = newMultiplier;
+
+    player.score += points;
+
+    this.eventQueue.push({
+      kind: GameEventKind.GateHit,
+      entityId: gateId,
+      laneIndex,
+      z,
+      points,
+    });
+
+    this.eventQueue.push({
+      kind: GameEventKind.ScoreChanged,
+      score: player.score,
+      delta: points,
+    });
+
+    if (multiplierChanged) {
+      this.eventQueue.push({
+        kind: GameEventKind.ComboChanged,
+        comboCount: player.comboCount,
+        multiplier: player.multiplier,
+      });
+    }
+  }
+
   // ── Combo decay ──────────────────────────────────────────────
 
   private decayCombo(dt: number): void {
@@ -360,9 +470,13 @@ export class Game {
       enemies: [],
       bullets: [],
       pickups: [],
+      gates: [],
       nextEntityId: 1,
       spawnAccumulator: 0,
       difficulty: 1.0,
+      warpPhase: WarpPhase.Normal,
+      warpTimer: this.config.warpInterval,
+      gateSpawnAccumulator: 0,
     };
   }
 }

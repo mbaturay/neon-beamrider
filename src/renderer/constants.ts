@@ -18,3 +18,11 @@ export const BULLET_RADIUS = 0.08;
 export const BULLET_LENGTH = 0.6;
 export const KILL_RING_DURATION_MS = 300;
 export const KILL_RING_MAX_SCALE = 2.0;
+export const GATE_DIAMETER = 1.4;
+export const GATE_THICKNESS = 0.12;
+export const GATE_TESSELLATION = 16;
+
+// ─── Warp visual tuning ─────────────────────────────────────
+export const WARP_AMBIENT_INTENSITY = 0.55;
+export const NORMAL_AMBIENT_INTENSITY = 0.15;
+export const WARP_SWAY_MULTIPLIER = 3;

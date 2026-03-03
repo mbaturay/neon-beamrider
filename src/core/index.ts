@@ -9,13 +9,14 @@ export { DEFAULT_CONFIG } from "./config.ts";
 export type { GameConfig, EnemyTypeConfig } from "./config.ts";
 
 // ─── Types ─────────────────────────────────────────────────────
-export { EnemyType, EntityTag, RunPhase } from "./types.ts";
+export { EnemyType, EntityTag, RunPhase, WarpPhase } from "./types.ts";
 export type {
   GameState,
   PlayerState,
   EnemyEntity,
   BulletEntity,
   PickupEntity,
+  GateEntity,
   Entity,
 } from "./types.ts";
 
@@ -33,6 +34,9 @@ export type {
   ScoreChangedEvent,
   ComboChangedEvent,
   PhaseChangedEvent,
+  WarpStartedEvent,
+  WarpEndedEvent,
+  GateHitEvent,
 } from "./events.ts";
 
 // ─── PRNG ──────────────────────────────────────────────────────

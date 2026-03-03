@@ -16,6 +16,7 @@ export interface MaterialSet {
   enemyCharger: StandardMaterial;
   tube: StandardMaterial;
   killRing: StandardMaterial;
+  gate: StandardMaterial;
 }
 
 // ─── Bridge: Theme → MaterialSet ─────────────────────────────
@@ -50,6 +51,13 @@ export function createMaterialSetFromTheme(
   killRing.specularColor = Color3.Black();
   killRing.emissiveColor = new Color3(1, 1, 1);
 
+  // Gate: uses the theme's pickups palette slot
+  const p = theme.palette.pickups;
+  const gate = new StandardMaterial("mat_gate", scene);
+  gate.diffuseColor = Color3.Black();
+  gate.specularColor = Color3.Black();
+  gate.emissiveColor = new Color3(p.r, p.g, p.b);
+
   return {
     lane: tm.laneMat,
     player: tm.playerMat,
@@ -59,6 +67,7 @@ export function createMaterialSetFromTheme(
     enemyCharger: tm.enemyMatA, // Charger → enemyA (shares with Runner)
     tube,
     killRing,
+    gate,
   };
 }
 

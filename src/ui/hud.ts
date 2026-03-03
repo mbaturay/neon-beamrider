@@ -1,5 +1,5 @@
 import type { GameState } from "../core/types.ts";
-import { RunPhase } from "../core/types.ts";
+import { RunPhase, WarpPhase } from "../core/types.ts";
 
 /**
  * Manages the HTML HUD overlay.
@@ -13,11 +13,13 @@ export class Hud {
   private readonly elTheme: HTMLElement;
   private readonly elGameover: HTMLElement;
   private readonly elGameoverScore: HTMLElement;
+  private readonly elWarp: HTMLElement;
 
   private cachedScore = -1;
   private cachedMultiplier = -1;
   private cachedPhase: string = "";
   private cachedDifficulty = -1;
+  private cachedWarpPhase: string = "";
 
   constructor() {
     this.elScore = this.require("hud-score");
@@ -27,6 +29,7 @@ export class Hud {
     this.elTheme = this.require("hud-theme");
     this.elGameover = this.require("hud-gameover");
     this.elGameoverScore = this.require("hud-gameover-score");
+    this.elWarp = this.require("hud-warp");
   }
 
   /** Update HUD from game state. Call once per frame. */
@@ -73,6 +76,13 @@ export class Hud {
         this.elGameover.dataset.visible = "false";
       }
     }
+
+    // Warp indicator
+    if (state.warpPhase !== this.cachedWarpPhase) {
+      this.cachedWarpPhase = state.warpPhase;
+      this.elWarp.dataset.visible =
+        state.warpPhase === WarpPhase.Warp ? "true" : "false";
+    }
   }
 
   /** Update the displayed theme name. */
@@ -86,6 +96,7 @@ export class Hud {
     this.cachedMultiplier = -1;
     this.cachedPhase = "";
     this.cachedDifficulty = -1;
+    this.cachedWarpPhase = "";
   }
 
   private require(id: string): HTMLElement {

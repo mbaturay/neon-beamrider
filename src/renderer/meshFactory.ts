@@ -15,6 +15,9 @@ import {
   ENEMY_SCALE,
   BULLET_RADIUS,
   BULLET_LENGTH,
+  GATE_DIAMETER,
+  GATE_THICKNESS,
+  GATE_TESSELLATION,
 } from "./constants.ts";
 import { laneAngle } from "./mapping.ts";
 
@@ -256,6 +259,27 @@ export function createBulletTemplate(
   return bullet;
 }
 
+// ─── Gate template ──────────────────────────────────────────
+
+export function createGateTemplate(
+  scene: Scene,
+  materials: MaterialSet,
+): Mesh {
+  const gate = MeshBuilder.CreateTorus(
+    "tmpl_gate",
+    {
+      diameter: GATE_DIAMETER,
+      thickness: GATE_THICKNESS,
+      tessellation: GATE_TESSELLATION,
+    },
+    scene,
+  );
+  gate.material = materials.gate;
+  gate.isPickable = false;
+  gate.setEnabled(false);
+  return gate;
+}
+
 // ─── Clone helpers ───────────────────────────────────────────
 
 export function cloneEnemyMesh(
@@ -289,5 +313,13 @@ export function cloneBulletMesh(template: Mesh, entityId: number): Mesh {
   const clone = template.clone(`bullet_${entityId}`);
   if (!clone) throw new Error(`Failed to clone bullet for entity ${entityId}`);
   clone.setEnabled(true);
+  return clone;
+}
+
+export function cloneGateMesh(template: Mesh, entityId: number): Mesh {
+  const clone = template.clone(`gate_${entityId}`);
+  if (!clone) throw new Error(`Failed to clone gate for entity ${entityId}`);
+  clone.setEnabled(true);
+  clone.isPickable = false;
   return clone;
 }

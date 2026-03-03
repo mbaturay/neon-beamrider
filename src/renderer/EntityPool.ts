@@ -1,10 +1,10 @@
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
-import type { EnemyEntity, BulletEntity, EnemyType } from "../core/types.ts";
+import type { EnemyEntity, BulletEntity, GateEntity, EnemyType } from "../core/types.ts";
 import type { MaterialSet } from "./materials.ts";
 import { mapLaneZToWorld, laneAngle } from "./mapping.ts";
-import { cloneEnemyMesh, cloneBulletMesh } from "./meshFactory.ts";
+import { cloneEnemyMesh, cloneBulletMesh, cloneGateMesh } from "./meshFactory.ts";
 
 /**
  * Tracks the mapping between game entity IDs and Babylon meshes.
@@ -13,8 +13,10 @@ import { cloneEnemyMesh, cloneBulletMesh } from "./meshFactory.ts";
 export class EntityPool {
   private readonly enemies = new Map<number, TransformNode>();
   private readonly bullets = new Map<number, Mesh>();
+  private readonly gates = new Map<number, Mesh>();
   private enemyTemplates: Record<EnemyType, TransformNode>;
   private bulletTemplate: Mesh;
+  private gateTemplate: Mesh;
   private readonly scene: Scene;
   private materials: MaterialSet;
   private readonly lanes: number;
@@ -22,12 +24,14 @@ export class EntityPool {
   constructor(
     enemyTemplates: Record<EnemyType, TransformNode>,
     bulletTemplate: Mesh,
+    gateTemplate: Mesh,
     scene: Scene,
     materials: MaterialSet,
     lanes: number,
   ) {
     this.enemyTemplates = enemyTemplates;
     this.bulletTemplate = bulletTemplate;
+    this.gateTemplate = gateTemplate;
     this.scene = scene;
     this.materials = materials;
     this.lanes = lanes;
@@ -40,11 +44,13 @@ export class EntityPool {
   rebuild(
     enemyTemplates: Record<EnemyType, TransformNode>,
     bulletTemplate: Mesh,
+    gateTemplate: Mesh,
     materials: MaterialSet,
   ): void {
     this.disposeAll();
     this.enemyTemplates = enemyTemplates;
     this.bulletTemplate = bulletTemplate;
+    this.gateTemplate = gateTemplate;
     this.materials = materials;
   }
 
@@ -122,10 +128,41 @@ export class EntityPool {
     }
   }
 
+  syncGates(gates: readonly GateEntity[]): void {
+    const activeIds = new Set<number>();
+
+    for (const gate of gates) {
+      if (!gate.alive) continue;
+      activeIds.add(gate.id);
+
+      let mesh = this.gates.get(gate.id);
+      if (!mesh) {
+        mesh = cloneGateMesh(this.gateTemplate, gate.id);
+        this.gates.set(gate.id, mesh);
+      }
+
+      // Gates are stationary — no interpolation needed
+      const pos = mapLaneZToWorld(gate.laneIndex, gate.z, this.lanes);
+      mesh.position.copyFrom(pos);
+
+      const angle = laneAngle(gate.laneIndex, this.lanes);
+      mesh.rotation.z = angle - Math.PI / 2;
+    }
+
+    for (const [id, mesh] of this.gates) {
+      if (!activeIds.has(id)) {
+        mesh.dispose();
+        this.gates.delete(id);
+      }
+    }
+  }
+
   disposeAll(): void {
     for (const [, node] of this.enemies) node.dispose(false, true);
     this.enemies.clear();
     for (const [, mesh] of this.bullets) mesh.dispose();
     this.bullets.clear();
+    for (const [, mesh] of this.gates) mesh.dispose();
+    this.gates.clear();
   }
 }

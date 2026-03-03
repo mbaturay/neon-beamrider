@@ -10,6 +10,9 @@ export const GameEventKind = {
   ScoreChanged: "ScoreChanged",
   ComboChanged: "ComboChanged",
   PhaseChanged: "PhaseChanged",
+  WarpStarted: "WarpStarted",
+  WarpEnded: "WarpEnded",
+  GateHit: "GateHit",
 } as const;
 
 export type GameEventKind =
@@ -63,6 +66,22 @@ export interface PhaseChangedEvent {
   readonly phase: RunPhase;
 }
 
+export interface WarpStartedEvent {
+  readonly kind: typeof GameEventKind.WarpStarted;
+}
+
+export interface WarpEndedEvent {
+  readonly kind: typeof GameEventKind.WarpEnded;
+}
+
+export interface GateHitEvent {
+  readonly kind: typeof GameEventKind.GateHit;
+  readonly entityId: number;
+  readonly laneIndex: number;
+  readonly z: number;
+  readonly points: number;
+}
+
 export type GameEvent =
   | EnemySpawnedEvent
   | EnemyKilledEvent
@@ -70,7 +89,10 @@ export type GameEvent =
   | BulletFiredEvent
   | ScoreChangedEvent
   | ComboChangedEvent
-  | PhaseChangedEvent;
+  | PhaseChangedEvent
+  | WarpStartedEvent
+  | WarpEndedEvent
+  | GateHitEvent;
 
 // ─── Event queue ───────────────────────────────────────────────
 // Populated during a simulation step, consumed by renderer after

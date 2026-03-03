@@ -24,6 +24,7 @@ export const EntityTag = {
   Enemy: "Enemy",
   Bullet: "Bullet",
   Pickup: "Pickup",
+  Gate: "Gate",
 } as const;
 
 export type EntityTag = (typeof EntityTag)[keyof typeof EntityTag];
@@ -37,6 +38,15 @@ export const RunPhase = {
 } as const;
 
 export type RunPhase = (typeof RunPhase)[keyof typeof RunPhase];
+
+// ─── Warp Phase ─────────────────────────────────────────────────
+
+export const WarpPhase = {
+  Normal: "Normal",
+  Warp: "Warp",
+} as const;
+
+export type WarpPhase = (typeof WarpPhase)[keyof typeof WarpPhase];
 
 // ─── Entity interfaces ────────────────────────────────────────
 
@@ -70,7 +80,15 @@ export interface PickupEntity {
   alive: boolean;
 }
 
-export type Entity = EnemyEntity | BulletEntity | PickupEntity;
+export interface GateEntity {
+  readonly tag: typeof EntityTag.Gate;
+  id: number;
+  laneIndex: number;
+  z: number;
+  alive: boolean;
+}
+
+export type Entity = EnemyEntity | BulletEntity | PickupEntity | GateEntity;
 
 // ─── Player state ──────────────────────────────────────────────
 
@@ -94,7 +112,11 @@ export interface GameState {
   enemies: EnemyEntity[];
   bullets: BulletEntity[];
   pickups: PickupEntity[];
+  gates: GateEntity[];
   nextEntityId: number; // auto-incrementing id
   spawnAccumulator: number;
   difficulty: number; // scalar that ramps over time (starts 1.0)
+  warpPhase: WarpPhase;
+  warpTimer: number; // seconds until next warp transition
+  gateSpawnAccumulator: number;
 }
