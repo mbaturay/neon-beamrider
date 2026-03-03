@@ -59,9 +59,11 @@ export function createSpawnDirector(
     return Math.floor(random() * config.lanes);
   }
 
+  const commands: SpawnCommand[] = [];
+
   return {
     update(dt: number, _elapsed: number, difficulty: number): SpawnCommand[] {
-      const commands: SpawnCommand[] = [];
+      commands.length = 0;
       const interval = config.baseSpawnInterval / difficulty;
       accumulator += dt;
 

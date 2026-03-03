@@ -53,27 +53,32 @@ export function createGate(
   };
 }
 
+// ─── Reusable buffer (avoid per-frame allocation) ────────────────
+
+const _reachedBuf: number[] = [];
+
 // ─── Movement ──────────────────────────────────────────────────
 
 /**
  * Advance all living enemies toward z = 0.
  * Returns ids of enemies that reached the player zone (z <= nearThreshold).
+ * WARNING: Returns a shared buffer. Consume before next call.
  */
 export function updateEnemies(
   enemies: EnemyEntity[],
   dt: number,
   nearThreshold: number,
 ): number[] {
-  const reached: number[] = [];
+  _reachedBuf.length = 0;
   for (const e of enemies) {
     if (!e.alive) continue;
     e.z -= e.speed * dt; // enemies advance toward z = 0
     if (e.z <= nearThreshold) {
-      reached.push(e.id);
+      _reachedBuf.push(e.id);
       e.alive = false;
     }
   }
-  return reached;
+  return _reachedBuf;
 }
 
 /**
@@ -104,17 +109,20 @@ export interface HitResult {
   z: number;
 }
 
+const _hitBuf: HitResult[] = [];
+
 /**
  * Check alive bullets against alive enemies.
  * Hit condition: same lane AND |Δz| < hitWindow.
  * Each bullet can hit at most one enemy per step.
+ * WARNING: Returns a shared buffer. Consume before next call.
  */
 export function detectCollisions(
   enemies: EnemyEntity[],
   bullets: BulletEntity[],
   config: GameConfig,
 ): HitResult[] {
-  const hits: HitResult[] = [];
+  _hitBuf.length = 0;
 
   for (const b of bullets) {
     if (!b.alive) continue;
@@ -126,7 +134,7 @@ export function detectCollisions(
         b.alive = false; // bullet consumed
         if (e.hp <= 0) {
           e.alive = false;
-          hits.push({
+          _hitBuf.push({
             enemyId: e.id,
             bulletId: b.id,
             enemyType: e.enemyType,
@@ -139,7 +147,7 @@ export function detectCollisions(
     }
   }
 
-  return hits;
+  return _hitBuf;
 }
 
 // ─── Gate collision detection ─────────────────────────────────
@@ -150,16 +158,19 @@ export interface GateHitResult {
   z: number;
 }
 
+const _gateHitBuf: GateHitResult[] = [];
+
 /**
  * Check alive bullets against alive gates.
  * Same-lane, |Δz| < hitWindow. Each bullet hits at most one gate.
+ * WARNING: Returns a shared buffer. Consume before next call.
  */
 export function detectGateCollisions(
   gates: GateEntity[],
   bullets: BulletEntity[],
   hitWindow: number,
 ): GateHitResult[] {
-  const hits: GateHitResult[] = [];
+  _gateHitBuf.length = 0;
 
   for (const b of bullets) {
     if (!b.alive) continue;
@@ -169,7 +180,7 @@ export function detectGateCollisions(
       if (Math.abs(b.z - g.z) < hitWindow) {
         g.alive = false;
         b.alive = false;
-        hits.push({
+        _gateHitBuf.push({
           gateId: g.id,
           laneIndex: g.laneIndex,
           z: g.z,
@@ -179,7 +190,7 @@ export function detectGateCollisions(
     }
   }
 
-  return hits;
+  return _gateHitBuf;
 }
 
 // ─── Garbage collection ────────────────────────────────────────

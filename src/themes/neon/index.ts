@@ -6,7 +6,7 @@ import { Scene } from "@babylonjs/core/scene";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
-import type { Theme, ThemePalette, ThemeMaterials, VfxFactory, RGB } from "../themeTypes.ts";
+import type { Theme, ThemePalette, ThemeMaterials, VfxFactory, RGB, QualityLevel } from "../themeTypes.ts";
 
 // ─── Palette ─────────────────────────────────────────────────
 
@@ -57,20 +57,28 @@ export const neonTheme: Theme = {
   name: "Neon",
   palette,
 
-  applyToScene(scene: Scene, camera: Camera): void {
+  applyToScene(scene: Scene, camera: Camera, quality: QualityLevel): void {
     scene.clearColor = new Color4(0, 0, 0, 1);
     scene.fogMode = Scene.FOGMODE_EXP;
     scene.fogDensity = 0.008;
     scene.fogColor = new Color3(0, 0, 0);
 
-    pipeline = new DefaultRenderingPipeline("neonPipeline", true, scene, [
-      camera,
-    ]);
-    pipeline.bloomEnabled = true;
-    pipeline.bloomThreshold = 0.3;
-    pipeline.bloomWeight = 0.5;
-    pipeline.bloomKernel = 64;
-    pipeline.bloomScale = 0.5;
+    if (quality !== "low") {
+      pipeline = new DefaultRenderingPipeline("neonPipeline", true, scene, [
+        camera,
+      ]);
+      pipeline.bloomEnabled = true;
+      pipeline.bloomThreshold = 0.3;
+      if (quality === "medium") {
+        pipeline.bloomWeight = 0.3;
+        pipeline.bloomKernel = 32;
+        pipeline.bloomScale = 0.25;
+      } else {
+        pipeline.bloomWeight = 0.5;
+        pipeline.bloomKernel = 64;
+        pipeline.bloomScale = 0.5;
+      }
+    }
   },
 
   removeFromScene(_scene: Scene): void {
@@ -90,10 +98,11 @@ export const neonTheme: Theme = {
     };
   },
 
-  createVfxFactory(scene: Scene): VfxFactory {
+  createVfxFactory(scene: Scene, quality: QualityLevel): VfxFactory {
     const killMat = emissiveMat("neon_vfx_kill", { r: 1, g: 1, b: 1 }, scene);
     const sparkMat = emissiveMat("neon_vfx_spark", palette.enemyA, scene);
     const hitMat = emissiveMat("neon_vfx_hit", palette.bullet, scene);
+    const sparkCount = quality === "high" ? 5 : quality === "medium" ? 3 : 0;
 
     return {
       spawnExplosion(position: Vector3, sc: Scene): void {
@@ -112,8 +121,8 @@ export const neonTheme: Theme = {
           mesh: ReturnType<typeof MeshBuilder.CreateBox>;
           vel: Vector3;
         }[] = [];
-        for (let i = 0; i < 5; i++) {
-          const a = (i / 5) * Math.PI * 2;
+        for (let i = 0; i < sparkCount; i++) {
+          const a = (i / sparkCount) * Math.PI * 2;
           const spark = MeshBuilder.CreateBox(
             `neon_spark_${i}_${performance.now()}`,
             { size: 0.08 },

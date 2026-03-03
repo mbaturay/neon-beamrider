@@ -4,7 +4,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Scene } from "@babylonjs/core/scene";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
-import type { Theme, ThemePalette, ThemeMaterials, VfxFactory, RGB } from "../themeTypes.ts";
+import type { Theme, ThemePalette, ThemeMaterials, VfxFactory, RGB, QualityLevel } from "../themeTypes.ts";
 
 // ─── Palette — warm CRT aesthetic ───────────────────────────
 
@@ -39,7 +39,7 @@ export const retroTheme: Theme = {
   name: "Retro",
   palette,
 
-  applyToScene(scene: Scene, _camera: Camera): void {
+  applyToScene(scene: Scene, _camera: Camera, _quality: QualityLevel): void {
     const bg = palette.background;
     scene.clearColor = new Color4(bg.r, bg.g, bg.b, 1);
     scene.fogMode = Scene.FOGMODE_EXP;
@@ -61,7 +61,7 @@ export const retroTheme: Theme = {
     };
   },
 
-  createVfxFactory(scene: Scene): VfxFactory {
+  createVfxFactory(scene: Scene, _quality: QualityLevel): VfxFactory {
     const killMat = emissiveMat("retro_vfx_kill", { r: 1, g: 0.8, b: 0 }, scene);
     const hitMat = emissiveMat("retro_vfx_hit", palette.bullet, scene);
 

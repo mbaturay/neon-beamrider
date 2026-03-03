@@ -4,7 +4,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Scene } from "@babylonjs/core/scene";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
-import type { Theme, ThemePalette, ThemeMaterials, VfxFactory, RGB } from "../themeTypes.ts";
+import type { Theme, ThemePalette, ThemeMaterials, VfxFactory, RGB, QualityLevel } from "../themeTypes.ts";
 
 // ─── Palette — bold flat colors ──────────────────────────────
 
@@ -39,7 +39,7 @@ export const chunkyTheme: Theme = {
   name: "Chunky",
   palette,
 
-  applyToScene(scene: Scene, _camera: Camera): void {
+  applyToScene(scene: Scene, _camera: Camera, _quality: QualityLevel): void {
     const bg = palette.background;
     scene.clearColor = new Color4(bg.r, bg.g, bg.b, 1);
     scene.fogMode = Scene.FOGMODE_EXP;
@@ -61,7 +61,7 @@ export const chunkyTheme: Theme = {
     };
   },
 
-  createVfxFactory(scene: Scene): VfxFactory {
+  createVfxFactory(scene: Scene, _quality: QualityLevel): VfxFactory {
     const killMat = flatMat("chunky_vfx_kill", { r: 1, g: 1, b: 1 }, scene);
     const hitMat = flatMat("chunky_vfx_hit", palette.bullet, scene);
 

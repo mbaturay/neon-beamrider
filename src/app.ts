@@ -1,7 +1,7 @@
 import { Game, InputAction } from "./core/index.ts";
 import { Renderer } from "./renderer/index.ts";
 import { loadTheme } from "./themes/loadTheme.ts";
-import type { ThemeId } from "./themes/themeTypes.ts";
+import type { ThemeId, QualityLevel } from "./themes/themeTypes.ts";
 import type { Theme } from "./themes/themeTypes.ts";
 import { Hud } from "./ui/hud.ts";
 
@@ -23,6 +23,8 @@ const THEME_MAP: Record<string, ThemeId> = {
   "3": "chunky",
 };
 
+const QUALITY_CYCLE: QualityLevel[] = ["low", "medium", "high"];
+
 /**
  * Application controller.
  * Owns Game, Renderer, and Hud. Runs the rAF loop and routes input.
@@ -32,6 +34,7 @@ export class App {
   private readonly renderer: Renderer;
   private readonly hud: Hud;
   private themeSwitching = false;
+  private qualityIndex = 2; // start at "high"
   private lastTime = 0;
   private rafId = 0;
 
@@ -82,6 +85,12 @@ export class App {
       return;
     }
 
+    // Quality cycling
+    if (e.key === "q" || e.key === "Q") {
+      this.cycleQuality();
+      return;
+    }
+
     // Theme switching
     const themeId = THEME_MAP[e.key];
     if (themeId) {
@@ -121,6 +130,15 @@ export class App {
       .finally(() => {
         this.themeSwitching = false;
       });
+  }
+
+  // ── Quality ─────────────────────────────────────────────────
+
+  private cycleQuality(): void {
+    this.qualityIndex = (this.qualityIndex + 1) % QUALITY_CYCLE.length;
+    const quality = QUALITY_CYCLE[this.qualityIndex];
+    this.renderer.setQuality(quality);
+    console.log("Quality:", quality);
   }
 
   // ── Reset ──────────────────────────────────────────────────

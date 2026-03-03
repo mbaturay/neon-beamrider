@@ -10,7 +10,7 @@ import type { GameState } from "../core/types.ts";
 import type { GameConfig } from "../core/config.ts";
 import type { GameEvent } from "../core/events.ts";
 import { GameEventKind } from "../core/events.ts";
-import type { Theme } from "../themes/themeTypes.ts";
+import type { Theme, QualityLevel } from "../themes/themeTypes.ts";
 import type { MaterialSet } from "./materials.ts";
 import { createMaterialSetFromTheme, disposeMaterialSet } from "./materials.ts";
 import {
@@ -53,16 +53,19 @@ export class Renderer {
   private entityPool: EntityPool;
   private effects: EffectsManager;
 
-  // Warp visual state
+  // Quality + warp visual state
+  private quality: QualityLevel;
   private warpActive = false;
 
   constructor(
     canvas: HTMLCanvasElement,
     config: Readonly<GameConfig>,
     theme: Theme,
+    quality: QualityLevel = "high",
   ) {
     this.config = config;
     this.theme = theme;
+    this.quality = quality;
 
     // ── Engine ────────────────────────────────────────────
     this.engine = new Engine(canvas, true, {
@@ -92,7 +95,7 @@ export class Renderer {
     this.ambientLight.intensity = NORMAL_AMBIENT_INTENSITY;
 
     // ── Apply theme ───────────────────────────────────────
-    theme.applyToScene(this.scene, this.camera);
+    theme.applyToScene(this.scene, this.camera, this.quality);
     this.materials = createMaterialSetFromTheme(theme, this.scene);
 
     // ── Environment ───────────────────────────────────────
@@ -120,7 +123,7 @@ export class Renderer {
     );
 
     // ── Effects ───────────────────────────────────────────
-    const vfx = theme.createVfxFactory(this.scene);
+    const vfx = theme.createVfxFactory(this.scene, this.quality);
     this.effects = new EffectsManager(this.scene, vfx, config.lanes);
 
     // ── Resize ────────────────────────────────────────────
@@ -141,7 +144,7 @@ export class Renderer {
     disposeMaterialSet(this.materials);
 
     // 3. Apply new theme to scene (clearColor, fog, post-process)
-    theme.applyToScene(this.scene, this.camera);
+    theme.applyToScene(this.scene, this.camera, this.quality);
 
     // 4. Create new materials
     this.materials = createMaterialSetFromTheme(theme, this.scene);
@@ -188,11 +191,27 @@ export class Renderer {
     );
 
     // 8. Rebuild effects with new VFX factory
-    const vfx = theme.createVfxFactory(this.scene);
+    const vfx = theme.createVfxFactory(this.scene, this.quality);
     this.effects.setVfxFactory(vfx);
 
     // 9. Store new theme
     this.theme = theme;
+  }
+
+  /**
+   * Change quality level. Re-applies the current theme with new settings.
+   */
+  setQuality(quality: QualityLevel): void {
+    if (quality === this.quality) return;
+    this.quality = quality;
+
+    // Re-apply theme scene effects (bloom, etc.) with new quality
+    this.theme.removeFromScene(this.scene);
+    this.theme.applyToScene(this.scene, this.camera, quality);
+
+    // Rebuild VFX (spark counts change with quality)
+    const vfx = this.theme.createVfxFactory(this.scene, quality);
+    this.effects.setVfxFactory(vfx);
   }
 
   /**

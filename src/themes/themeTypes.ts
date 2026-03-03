@@ -14,6 +14,16 @@ export const ThemeId = {
 
 export type ThemeId = (typeof ThemeId)[keyof typeof ThemeId];
 
+// ─── QualityLevel ───────────────────────────────────────────
+
+export const QualityLevel = {
+  Low: "low",
+  Medium: "medium",
+  High: "high",
+} as const;
+
+export type QualityLevel = (typeof QualityLevel)[keyof typeof QualityLevel];
+
 // ─── Palette ─────────────────────────────────────────────────
 
 export interface RGB {
@@ -57,7 +67,7 @@ export interface Theme {
   readonly palette: ThemePalette;
 
   /** Set scene clearColor, fog, post-processing, etc. */
-  applyToScene(scene: Scene, camera: Camera): void;
+  applyToScene(scene: Scene, camera: Camera, quality: QualityLevel): void;
 
   /** Dispose post-processes and any scene-level resources this theme added. */
   removeFromScene(scene: Scene): void;
@@ -66,5 +76,5 @@ export interface Theme {
   createMaterials(scene: Scene): ThemeMaterials;
 
   /** Create VFX spawner functions using the theme's aesthetic. */
-  createVfxFactory(scene: Scene): VfxFactory;
+  createVfxFactory(scene: Scene, quality: QualityLevel): VfxFactory;
 }

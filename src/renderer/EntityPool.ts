@@ -8,12 +8,30 @@ import { cloneEnemyMesh, cloneBulletMesh, cloneGateMesh } from "./meshFactory.ts
 
 /**
  * Tracks the mapping between game entity IDs and Babylon meshes.
- * Creates, positions, and disposes meshes as entities come and go.
+ * Uses free-lists to recycle meshes instead of dispose/re-clone.
+ * Reuses a single Set across sync calls to avoid per-frame allocations.
  */
 export class EntityPool {
+  // Active entity → mesh mappings
   private readonly enemies = new Map<number, TransformNode>();
   private readonly bullets = new Map<number, Mesh>();
   private readonly gates = new Map<number, Mesh>();
+
+  // Track enemy type per ID so we return meshes to the right free list
+  private readonly enemyTypes = new Map<number, EnemyType>();
+
+  // Free lists (meshes with setEnabled(false), ready for reuse)
+  private readonly enemyFree: Record<EnemyType, TransformNode[]> = {
+    Runner: [],
+    Drifter: [],
+    Charger: [],
+  };
+  private readonly bulletFree: Mesh[] = [];
+  private readonly gateFree: Mesh[] = [];
+
+  // Single reusable Set — cleared between sync calls
+  private readonly _activeIds = new Set<number>();
+
   private enemyTemplates: Record<EnemyType, TransformNode>;
   private bulletTemplate: Mesh;
   private gateTemplate: Mesh;
@@ -39,7 +57,7 @@ export class EntityPool {
 
   /**
    * Rebuild with new templates and materials (on theme switch).
-   * Disposes all existing clones — they'll be re-created next frame.
+   * Disposes all existing clones and free-lists — they'll be re-created next frame.
    */
   rebuild(
     enemyTemplates: Record<EnemyType, TransformNode>,
@@ -59,7 +77,8 @@ export class EntityPool {
     alpha: number,
     fixedDt: number,
   ): void {
-    const activeIds = new Set<number>();
+    const activeIds = this._activeIds;
+    activeIds.clear();
 
     for (const enemy of enemies) {
       if (!enemy.alive) continue;
@@ -67,14 +86,9 @@ export class EntityPool {
 
       let node = this.enemies.get(enemy.id);
       if (!node) {
-        node = cloneEnemyMesh(
-          this.enemyTemplates[enemy.enemyType],
-          enemy.id,
-          this.scene,
-          this.materials,
-          enemy.enemyType,
-        );
+        node = this.acquireEnemy(enemy.enemyType, enemy.id);
         this.enemies.set(enemy.id, node);
+        this.enemyTypes.set(enemy.id, enemy.enemyType);
       }
 
       const prevZ = enemy.z + enemy.speed * fixedDt;
@@ -88,8 +102,7 @@ export class EntityPool {
 
     for (const [id, node] of this.enemies) {
       if (!activeIds.has(id)) {
-        node.dispose(false, true);
-        this.enemies.delete(id);
+        this.releaseEnemy(id, node);
       }
     }
   }
@@ -99,7 +112,8 @@ export class EntityPool {
     alpha: number,
     fixedDt: number,
   ): void {
-    const activeIds = new Set<number>();
+    const activeIds = this._activeIds;
+    activeIds.clear();
 
     for (const bullet of bullets) {
       if (!bullet.alive) continue;
@@ -107,7 +121,7 @@ export class EntityPool {
 
       let mesh = this.bullets.get(bullet.id);
       if (!mesh) {
-        mesh = cloneBulletMesh(this.bulletTemplate, bullet.id);
+        mesh = this.acquireBullet(bullet.id);
         this.bullets.set(bullet.id, mesh);
       }
 
@@ -122,14 +136,16 @@ export class EntityPool {
 
     for (const [id, mesh] of this.bullets) {
       if (!activeIds.has(id)) {
-        mesh.dispose();
+        mesh.setEnabled(false);
+        this.bulletFree.push(mesh);
         this.bullets.delete(id);
       }
     }
   }
 
   syncGates(gates: readonly GateEntity[]): void {
-    const activeIds = new Set<number>();
+    const activeIds = this._activeIds;
+    activeIds.clear();
 
     for (const gate of gates) {
       if (!gate.alive) continue;
@@ -137,7 +153,7 @@ export class EntityPool {
 
       let mesh = this.gates.get(gate.id);
       if (!mesh) {
-        mesh = cloneGateMesh(this.gateTemplate, gate.id);
+        mesh = this.acquireGate(gate.id);
         this.gates.set(gate.id, mesh);
       }
 
@@ -151,7 +167,8 @@ export class EntityPool {
 
     for (const [id, mesh] of this.gates) {
       if (!activeIds.has(id)) {
-        mesh.dispose();
+        mesh.setEnabled(false);
+        this.gateFree.push(mesh);
         this.gates.delete(id);
       }
     }
@@ -160,9 +177,66 @@ export class EntityPool {
   disposeAll(): void {
     for (const [, node] of this.enemies) node.dispose(false, true);
     this.enemies.clear();
+    this.enemyTypes.clear();
     for (const [, mesh] of this.bullets) mesh.dispose();
     this.bullets.clear();
     for (const [, mesh] of this.gates) mesh.dispose();
     this.gates.clear();
+
+    // Dispose free-list meshes too
+    for (const list of Object.values(this.enemyFree)) {
+      for (const node of list) node.dispose(false, true);
+      list.length = 0;
+    }
+    for (const mesh of this.bulletFree) mesh.dispose();
+    this.bulletFree.length = 0;
+    for (const mesh of this.gateFree) mesh.dispose();
+    this.gateFree.length = 0;
+  }
+
+  // ── Free-list acquire/release ──────────────────────────────
+
+  private acquireEnemy(type: EnemyType, entityId: number): TransformNode {
+    const free = this.enemyFree[type];
+    if (free.length > 0) {
+      const node = free.pop()!;
+      node.setEnabled(true);
+      return node;
+    }
+    return cloneEnemyMesh(
+      this.enemyTemplates[type],
+      entityId,
+      this.scene,
+      this.materials,
+      type,
+    );
+  }
+
+  private releaseEnemy(id: number, node: TransformNode): void {
+    node.setEnabled(false);
+    const type = this.enemyTypes.get(id);
+    if (type) {
+      this.enemyFree[type].push(node);
+      this.enemyTypes.delete(id);
+    }
+    this.enemies.delete(id);
+  }
+
+  private acquireBullet(entityId: number): Mesh {
+    if (this.bulletFree.length > 0) {
+      const mesh = this.bulletFree.pop()!;
+      mesh.setEnabled(true);
+      return mesh;
+    }
+    return cloneBulletMesh(this.bulletTemplate, entityId);
+  }
+
+  private acquireGate(entityId: number): Mesh {
+    if (this.gateFree.length > 0) {
+      const mesh = this.gateFree.pop()!;
+      mesh.setEnabled(true);
+      return mesh;
+    }
+    return cloneGateMesh(this.gateTemplate, entityId);
   }
 }
