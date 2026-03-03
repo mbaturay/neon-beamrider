@@ -14,7 +14,7 @@ import { cloneEnemyMesh, cloneBulletMesh, cloneGateMesh } from "./meshFactory.ts
 export class EntityPool {
   // Active entity → mesh mappings
   private readonly enemies = new Map<number, TransformNode>();
-  private readonly bullets = new Map<number, Mesh>();
+  private readonly bullets = new Map<number, TransformNode>();
   private readonly gates = new Map<number, Mesh>();
 
   // Track enemy type per ID so we return meshes to the right free list
@@ -26,14 +26,14 @@ export class EntityPool {
     Drifter: [],
     Charger: [],
   };
-  private readonly bulletFree: Mesh[] = [];
+  private readonly bulletFree: TransformNode[] = [];
   private readonly gateFree: Mesh[] = [];
 
   // Single reusable Set — cleared between sync calls
   private readonly _activeIds = new Set<number>();
 
   private enemyTemplates: Record<EnemyType, TransformNode>;
-  private bulletTemplate: Mesh;
+  private bulletTemplate: TransformNode;
   private gateTemplate: Mesh;
   private readonly scene: Scene;
   private materials: MaterialSet;
@@ -41,7 +41,7 @@ export class EntityPool {
 
   constructor(
     enemyTemplates: Record<EnemyType, TransformNode>,
-    bulletTemplate: Mesh,
+    bulletTemplate: TransformNode,
     gateTemplate: Mesh,
     scene: Scene,
     materials: MaterialSet,
@@ -61,7 +61,7 @@ export class EntityPool {
    */
   rebuild(
     enemyTemplates: Record<EnemyType, TransformNode>,
-    bulletTemplate: Mesh,
+    bulletTemplate: TransformNode,
     gateTemplate: Mesh,
     materials: MaterialSet,
   ): void {
@@ -119,25 +119,25 @@ export class EntityPool {
       if (!bullet.alive) continue;
       activeIds.add(bullet.id);
 
-      let mesh = this.bullets.get(bullet.id);
-      if (!mesh) {
-        mesh = this.acquireBullet(bullet.id);
-        this.bullets.set(bullet.id, mesh);
+      let node = this.bullets.get(bullet.id);
+      if (!node) {
+        node = this.acquireBullet(bullet.id);
+        this.bullets.set(bullet.id, node);
       }
 
       const prevZ = bullet.z - bullet.speed * fixedDt;
       const interpZ = prevZ + (bullet.z - prevZ) * alpha;
       const pos = mapLaneZToWorld(bullet.laneIndex, interpZ, this.lanes);
-      mesh.position.copyFrom(pos);
+      node.position.copyFrom(pos);
 
       const angle = laneAngle(bullet.laneIndex, this.lanes);
-      mesh.rotation.z = angle - Math.PI / 2;
+      node.rotation.z = angle - Math.PI / 2;
     }
 
-    for (const [id, mesh] of this.bullets) {
+    for (const [id, node] of this.bullets) {
       if (!activeIds.has(id)) {
-        mesh.setEnabled(false);
-        this.bulletFree.push(mesh);
+        node.setEnabled(false);
+        this.bulletFree.push(node);
         this.bullets.delete(id);
       }
     }
@@ -178,7 +178,7 @@ export class EntityPool {
     for (const [, node] of this.enemies) node.dispose(false, true);
     this.enemies.clear();
     this.enemyTypes.clear();
-    for (const [, mesh] of this.bullets) mesh.dispose();
+    for (const [, node] of this.bullets) node.dispose(false, true);
     this.bullets.clear();
     for (const [, mesh] of this.gates) mesh.dispose();
     this.gates.clear();
@@ -188,7 +188,7 @@ export class EntityPool {
       for (const node of list) node.dispose(false, true);
       list.length = 0;
     }
-    for (const mesh of this.bulletFree) mesh.dispose();
+    for (const node of this.bulletFree) node.dispose(false, true);
     this.bulletFree.length = 0;
     for (const mesh of this.gateFree) mesh.dispose();
     this.gateFree.length = 0;
@@ -222,13 +222,13 @@ export class EntityPool {
     this.enemies.delete(id);
   }
 
-  private acquireBullet(entityId: number): Mesh {
+  private acquireBullet(entityId: number): TransformNode {
     if (this.bulletFree.length > 0) {
-      const mesh = this.bulletFree.pop()!;
-      mesh.setEnabled(true);
-      return mesh;
+      const node = this.bulletFree.pop()!;
+      node.setEnabled(true);
+      return node;
     }
-    return cloneBulletMesh(this.bulletTemplate, entityId);
+    return cloneBulletMesh(this.bulletTemplate, entityId, this.scene);
   }
 
   private acquireGate(entityId: number): Mesh {

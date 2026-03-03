@@ -85,6 +85,13 @@ export class App {
       return;
     }
 
+    // Debug toggle
+    if (e.key === "F1") {
+      e.preventDefault();
+      this.renderer.toggleDebug();
+      return;
+    }
+
     // Quality cycling
     if (e.key === "q" || e.key === "Q") {
       this.cycleQuality();

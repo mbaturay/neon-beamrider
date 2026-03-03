@@ -4,8 +4,10 @@ import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color4 } from "@babylonjs/core/Maths/math.color";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { GameState } from "../core/types.ts";
 import type { GameConfig } from "../core/config.ts";
 import type { GameEvent } from "../core/events.ts";
@@ -48,7 +50,7 @@ export class Renderer {
   private laneLinesMesh: Mesh;
   private playerNode: TransformNode;
   private enemyTemplates: Record<string, TransformNode>;
-  private bulletTemplate: Mesh;
+  private bulletTemplate: TransformNode;
   private gateTemplate: Mesh;
   private entityPool: EntityPool;
   private effects: EffectsManager;
@@ -56,6 +58,11 @@ export class Renderer {
   // Quality + warp visual state
   private quality: QualityLevel;
   private warpActive = false;
+
+  // Debug
+  private debugEnabled = false;
+  private debugAxes: AbstractMesh[] = [];
+  private debugBulletTimer = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -158,6 +165,8 @@ export class Renderer {
     for (const child of playerChildren) {
       if (child.name.includes("engine")) {
         child.material = this.materials.bullet;
+      } else if (child.name.includes("core")) {
+        child.material = this.materials.killRing;
       } else {
         child.material = this.materials.player;
       }
@@ -175,7 +184,7 @@ export class Renderer {
     for (const tmpl of Object.values(this.enemyTemplates)) {
       tmpl.dispose(false, true);
     }
-    this.bulletTemplate.dispose();
+    this.bulletTemplate.dispose(false, true);
     this.gateTemplate.dispose();
 
     this.enemyTemplates = createEnemyTemplates(this.scene, this.materials);
@@ -215,6 +224,21 @@ export class Renderer {
   }
 
   /**
+   * Toggle F1 debug overlay: axis gizmo at player + console prints.
+   */
+  toggleDebug(): void {
+    this.debugEnabled = !this.debugEnabled;
+    if (this.debugEnabled) {
+      this.createDebugAxes();
+      console.log("[DEBUG] enabled");
+    } else {
+      this.disposeDebugAxes();
+      this.debugBulletTimer = 0;
+      console.log("[DEBUG] disabled");
+    }
+  }
+
+  /**
    * Render one frame. Called explicitly from the game loop.
    */
   render(
@@ -235,10 +259,15 @@ export class Renderer {
     this.entityPool.syncBullets(state.bullets, alpha, fixedDt);
     this.entityPool.syncGates(state.gates);
 
-    // 4. Camera sway
+    // 4. Debug
+    if (this.debugEnabled) {
+      this.updateDebug(state, fixedDt);
+    }
+
+    // 5. Camera sway
     this.updateCameraSway(state.elapsed);
 
-    // 5. Render
+    // 6. Render
     this.scene.render();
   }
 
@@ -307,5 +336,46 @@ export class Renderer {
   private exitWarp(): void {
     this.warpActive = false;
     this.ambientLight.intensity = NORMAL_AMBIENT_INTENSITY;
+  }
+
+  // ── Debug helpers ──────────────────────────────────────────
+
+  private createDebugAxes(): void {
+    const len = 2;
+    const xAxis = MeshBuilder.CreateCylinder("dbg_x", { height: len, diameter: 0.05, tessellation: 6 }, this.scene);
+    xAxis.rotation.z = -Math.PI / 2;
+    xAxis.position.x = len / 2;
+    xAxis.parent = this.playerNode;
+
+    const yAxis = MeshBuilder.CreateCylinder("dbg_y", { height: len, diameter: 0.05, tessellation: 6 }, this.scene);
+    yAxis.position.y = len / 2;
+    yAxis.parent = this.playerNode;
+
+    const zAxis = MeshBuilder.CreateCylinder("dbg_z", { height: len, diameter: 0.05, tessellation: 6 }, this.scene);
+    zAxis.rotation.x = Math.PI / 2;
+    zAxis.position.z = len / 2;
+    zAxis.parent = this.playerNode;
+
+    this.debugAxes = [xAxis, yAxis, zAxis];
+  }
+
+  private disposeDebugAxes(): void {
+    for (const m of this.debugAxes) m.dispose();
+    this.debugAxes = [];
+  }
+
+  private updateDebug(state: Readonly<GameState>, fixedDt: number): void {
+    // Attach axes to player position (already parented)
+
+    // Periodic bullet count + player info
+    this.debugBulletTimer += fixedDt;
+    if (this.debugBulletTimer >= 2) {
+      this.debugBulletTimer -= 2;
+      const aliveBullets = state.bullets.filter((b) => b.alive).length;
+      const p = state.player;
+      console.log(
+        `[DEBUG] lane=${p.laneIndex}  z=0  bullets=${aliveBullets}  pos=(${this.playerNode.position.x.toFixed(2)}, ${this.playerNode.position.y.toFixed(2)}, ${this.playerNode.position.z.toFixed(2)})`,
+      );
+    }
   }
 }

@@ -179,7 +179,7 @@ export const neonTheme: Theme = {
         flash.isPickable = false;
 
         const start = performance.now();
-        const dur = 100;
+        const dur = 80;
 
         const obs = sc.onBeforeRenderObservable.add(() => {
           const p = Math.min((performance.now() - start) / dur, 1);

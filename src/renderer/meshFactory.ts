@@ -15,6 +15,8 @@ import {
   ENEMY_SCALE,
   BULLET_RADIUS,
   BULLET_LENGTH,
+  BULLET_TRAIL_LENGTH,
+  BULLET_TRAIL_RADIUS,
   GATE_DIAMETER,
   GATE_THICKNESS,
   GATE_TESSELLATION,
@@ -82,10 +84,19 @@ export function createPlayerShip(
   const S = PLAYER_SCALE;
   const root = new TransformNode("player", scene);
 
-  // Main body
+  // Bright core — white/magenta emissive center block
+  const core = MeshBuilder.CreateBox(
+    "player_core",
+    { width: 0.35 * S, height: 0.35 * S, depth: 0.5 * S },
+    scene,
+  );
+  core.material = materials.killRing; // bright white emissive
+  core.parent = root;
+
+  // Main body wings
   const body = MeshBuilder.CreateBox(
     "player_body",
-    { width: 0.8 * S, height: 0.3 * S, depth: 1.5 * S },
+    { width: 1.0 * S, height: 0.25 * S, depth: 1.5 * S },
     scene,
   );
   body.material = materials.player;
@@ -97,7 +108,7 @@ export function createPlayerShip(
     { width: 0.3 * S, height: 0.2 * S, depth: 0.8 * S },
     scene,
   );
-  leftPod.position.set(-0.55 * S, 0, -0.2 * S);
+  leftPod.position.set(-0.6 * S, 0, -0.2 * S);
   leftPod.material = materials.player;
   leftPod.parent = root;
 
@@ -107,20 +118,19 @@ export function createPlayerShip(
     { width: 0.3 * S, height: 0.2 * S, depth: 0.8 * S },
     scene,
   );
-  rightPod.position.set(0.55 * S, 0, -0.2 * S);
+  rightPod.position.set(0.6 * S, 0, -0.2 * S);
   rightPod.material = materials.player;
   rightPod.parent = root;
 
-  // Engine disc
-  const engine = MeshBuilder.CreateDisc(
+  // Engine glow torus — strong emissive ring at the back
+  const engineGlow = MeshBuilder.CreateTorus(
     "player_engine",
-    { radius: 0.25 * S, tessellation: 12 },
+    { diameter: 0.4 * S, thickness: 0.08 * S, tessellation: 12 },
     scene,
   );
-  engine.position.z = -0.75 * S;
-  engine.rotation.x = Math.PI / 2;
-  engine.material = materials.bullet; // warm accent for engine glow
-  engine.parent = root;
+  engineGlow.position.z = -0.75 * S;
+  engineGlow.material = materials.bullet; // warm accent for engine glow
+  engineGlow.parent = root;
 
   return root;
 }
@@ -244,19 +254,40 @@ function createChargerTemplate(
 
 // ─── Bullet template ─────────────────────────────────────────
 
+/**
+ * Bullet is a TransformNode with two child meshes:
+ *  - bright head cylinder
+ *  - thinner, dimmer trail cylinder behind it
+ */
 export function createBulletTemplate(
   scene: Scene,
   materials: MaterialSet,
-): Mesh {
-  const bullet = MeshBuilder.CreateCylinder(
-    "tmpl_bullet",
+): TransformNode {
+  const root = new TransformNode("tmpl_bullet", scene);
+  root.setEnabled(false);
+
+  // Head — bright, chunky projectile
+  const head = MeshBuilder.CreateCylinder(
+    "bullet_head",
     { height: BULLET_LENGTH, diameter: BULLET_RADIUS * 2, tessellation: 6 },
     scene,
   );
-  bullet.rotation.x = Math.PI / 2; // orient along z
-  bullet.material = materials.bullet;
-  bullet.setEnabled(false);
-  return bullet;
+  head.rotation.x = Math.PI / 2; // orient along z
+  head.material = materials.bullet;
+  head.parent = root;
+
+  // Trail — thinner cylinder behind the head
+  const trail = MeshBuilder.CreateCylinder(
+    "bullet_trail",
+    { height: BULLET_TRAIL_LENGTH, diameter: BULLET_TRAIL_RADIUS * 2, tessellation: 6 },
+    scene,
+  );
+  trail.rotation.x = Math.PI / 2;
+  trail.position.z = -(BULLET_LENGTH + BULLET_TRAIL_LENGTH) / 2;
+  trail.material = materials.bullet;
+  trail.parent = root;
+
+  return root;
 }
 
 // ─── Gate template ──────────────────────────────────────────
@@ -309,11 +340,22 @@ export function cloneEnemyMesh(
   return root;
 }
 
-export function cloneBulletMesh(template: Mesh, entityId: number): Mesh {
-  const clone = template.clone(`bullet_${entityId}`);
-  if (!clone) throw new Error(`Failed to clone bullet for entity ${entityId}`);
-  clone.setEnabled(true);
-  return clone;
+export function cloneBulletMesh(
+  template: TransformNode,
+  entityId: number,
+  scene: Scene,
+): TransformNode {
+  const root = new TransformNode(`bullet_${entityId}`, scene);
+
+  for (const child of template.getChildMeshes()) {
+    const clone = (child as Mesh).clone(`bullet_${entityId}_${child.name}`, root);
+    if (clone) {
+      // material is inherited from clone
+    }
+  }
+
+  root.setEnabled(true);
+  return root;
 }
 
 export function cloneGateMesh(template: Mesh, entityId: number): Mesh {

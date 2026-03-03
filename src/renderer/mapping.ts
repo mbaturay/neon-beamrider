@@ -1,5 +1,5 @@
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { RING_RADIUS, Z_SCALE } from "./constants.ts";
+import { RING_RADIUS, Z_SCALE, PLAYER_Z_OFFSET } from "./constants.ts";
 
 /**
  * Lane angle on the ring (radians).
@@ -20,7 +20,8 @@ const _scratch = new Vector3();
  * Convert game-space (laneIndex, z) to Babylon world position.
  *
  * Lanes sit on a circle of RING_RADIUS in the XY plane.
- * z maps directly to world-z (depth into the tube).
+ * z is offset by PLAYER_Z_OFFSET so game z=0 maps into the
+ * visible portion of the tube (not right on top of the camera).
  *
  * WARNING: Returns a shared scratch vector. Callers must copyFrom()
  * or consume the value before the next call to this function.
@@ -34,7 +35,7 @@ export function mapLaneZToWorld(
   _scratch.set(
     RING_RADIUS * Math.cos(angle),
     RING_RADIUS * Math.sin(angle),
-    z * Z_SCALE,
+    z * Z_SCALE + PLAYER_Z_OFFSET,
   );
   return _scratch;
 }

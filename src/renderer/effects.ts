@@ -26,7 +26,7 @@ export class EffectsManager {
 
   /** Spawn muzzle flash at bullet origin. */
   spawnMuzzleFlash(laneIndex: number): void {
-    const pos = mapLaneZToWorld(laneIndex, 1, this.lanes);
+    const pos = mapLaneZToWorld(laneIndex, 0.5, this.lanes);
     this.vfxFactory.spawnHit(pos, this.scene);
   }
 
