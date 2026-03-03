@@ -1,0 +1,170 @@
+/* ── Reset ───────────────────────────────────────────────────── */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+/* ── Canvas ──────────────────────────────────────────────────── */
+
+#game-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+
+/* ── HUD overlay ─────────────────────────────────────────────── */
+
+#hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+  font-family: "Courier New", Courier, monospace;
+  color: #0ff;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 24px;
+  font-size: 16px;
+  text-shadow: 0 0 6px #0ff;
+}
+
+.hud-top-left,
+.hud-top-right {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud-top-right {
+  align-items: flex-end;
+}
+
+/* ── Score ────────────────────────────────────────────────────── */
+
+.hud-score {
+  font-size: 20px;
+  letter-spacing: 2px;
+}
+
+/* ── Multiplier ──────────────────────────────────────────────── */
+
+.hud-multiplier {
+  font-size: 14px;
+  color: #ff0;
+  text-shadow: 0 0 6px #ff0;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.hud-multiplier[data-active="true"] {
+  opacity: 1;
+  font-size: 16px;
+}
+
+/* ── Combo bar ───────────────────────────────────────────────── */
+
+.hud-combo-bar {
+  width: 80px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.hud-combo-fill {
+  height: 100%;
+  width: 0%;
+  background: #ff0;
+  box-shadow: 0 0 4px #ff0;
+  transition: width 0.1s linear;
+}
+
+/* ── Speed / difficulty ──────────────────────────────────────── */
+
+.hud-speed {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* ── Theme label ─────────────────────────────────────────────── */
+
+.hud-theme {
+  font-size: 11px;
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Game-over overlay ───────────────────────────────────────── */
+
+.hud-gameover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.4s ease-in;
+  pointer-events: none;
+}
+
+.hud-gameover[data-visible="true"] {
+  opacity: 1;
+}
+
+.hud-gameover-title {
+  font-size: 36px;
+  color: #f04;
+  text-shadow: 0 0 16px #f04, 0 0 40px rgba(255, 0, 68, 0.4);
+  letter-spacing: 6px;
+}
+
+.hud-gameover-score {
+  font-size: 18px;
+  color: #0ff;
+  text-shadow: 0 0 8px #0ff;
+}
+
+.hud-gameover-prompt {
+  font-size: 14px;
+  color: #fff;
+  opacity: 0.7;
+  animation: blink 1.2s step-end infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0;
+  }
+}
