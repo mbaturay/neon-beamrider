@@ -2,7 +2,6 @@ import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { EnemyEntity, BulletEntity, EnemyType } from "../core/types.ts";
-import type { GameConfig } from "../core/config.ts";
 import type { MaterialSet } from "./materials.ts";
 import { mapLaneZToWorld, laneAngle } from "./mapping.ts";
 import { cloneEnemyMesh, cloneBulletMesh } from "./meshFactory.ts";
@@ -14,10 +13,10 @@ import { cloneEnemyMesh, cloneBulletMesh } from "./meshFactory.ts";
 export class EntityPool {
   private readonly enemies = new Map<number, TransformNode>();
   private readonly bullets = new Map<number, Mesh>();
-  private readonly enemyTemplates: Record<EnemyType, TransformNode>;
-  private readonly bulletTemplate: Mesh;
+  private enemyTemplates: Record<EnemyType, TransformNode>;
+  private bulletTemplate: Mesh;
   private readonly scene: Scene;
-  private readonly materials: MaterialSet;
+  private materials: MaterialSet;
   private readonly lanes: number;
 
   constructor(
@@ -25,19 +24,30 @@ export class EntityPool {
     bulletTemplate: Mesh,
     scene: Scene,
     materials: MaterialSet,
-    config: Readonly<GameConfig>,
+    lanes: number,
   ) {
     this.enemyTemplates = enemyTemplates;
     this.bulletTemplate = bulletTemplate;
     this.scene = scene;
     this.materials = materials;
-    this.lanes = config.lanes;
+    this.lanes = lanes;
   }
 
   /**
-   * Create / update / dispose enemy meshes to match game state.
-   * Positions are interpolated between previous and current tick.
+   * Rebuild with new templates and materials (on theme switch).
+   * Disposes all existing clones — they'll be re-created next frame.
    */
+  rebuild(
+    enemyTemplates: Record<EnemyType, TransformNode>,
+    bulletTemplate: Mesh,
+    materials: MaterialSet,
+  ): void {
+    this.disposeAll();
+    this.enemyTemplates = enemyTemplates;
+    this.bulletTemplate = bulletTemplate;
+    this.materials = materials;
+  }
+
   syncEnemies(
     enemies: readonly EnemyEntity[],
     alpha: number,
@@ -61,18 +71,15 @@ export class EntityPool {
         this.enemies.set(enemy.id, node);
       }
 
-      // Interpolate z: enemy moves z -= speed*dt, so previous z was higher
       const prevZ = enemy.z + enemy.speed * fixedDt;
       const interpZ = prevZ + (enemy.z - prevZ) * alpha;
       const pos = mapLaneZToWorld(enemy.laneIndex, interpZ, this.lanes);
       node.position.copyFrom(pos);
 
-      // Orient: local Y points radially outward
       const angle = laneAngle(enemy.laneIndex, this.lanes);
       node.rotation.z = angle - Math.PI / 2;
     }
 
-    // Dispose meshes for enemies no longer alive
     for (const [id, node] of this.enemies) {
       if (!activeIds.has(id)) {
         node.dispose(false, true);
@@ -81,9 +88,6 @@ export class EntityPool {
     }
   }
 
-  /**
-   * Create / update / dispose bullet meshes to match game state.
-   */
   syncBullets(
     bullets: readonly BulletEntity[],
     alpha: number,
@@ -101,13 +105,11 @@ export class EntityPool {
         this.bullets.set(bullet.id, mesh);
       }
 
-      // Interpolate z: bullet moves z += speed*dt, so previous z was lower
       const prevZ = bullet.z - bullet.speed * fixedDt;
       const interpZ = prevZ + (bullet.z - prevZ) * alpha;
       const pos = mapLaneZToWorld(bullet.laneIndex, interpZ, this.lanes);
       mesh.position.copyFrom(pos);
 
-      // Orient along ring
       const angle = laneAngle(bullet.laneIndex, this.lanes);
       mesh.rotation.z = angle - Math.PI / 2;
     }
@@ -120,7 +122,6 @@ export class EntityPool {
     }
   }
 
-  /** Dispose all tracked meshes. */
   disposeAll(): void {
     for (const [, node] of this.enemies) node.dispose(false, true);
     this.enemies.clear();

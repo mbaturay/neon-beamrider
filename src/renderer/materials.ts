@@ -1,63 +1,11 @@
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { FresnelParameters } from "@babylonjs/core/Materials/fresnelParameters";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import type { Scene } from "@babylonjs/core/scene";
 import type { EnemyType } from "../core/types.ts";
-import {
-  COLOR_LANE,
-  COLOR_PLAYER,
-  COLOR_BULLET,
-  COLOR_ENEMY_RUNNER,
-  COLOR_ENEMY_DRIFTER,
-  COLOR_ENEMY_CHARGER,
-  COLOR_TUBE,
-  COLOR_KILL_RING,
-} from "./constants.ts";
+import type { Theme, RGB } from "../themes/themeTypes.ts";
 
-// ─── Helpers ─────────────────────────────────────────────────
-
-interface RGB {
-  r: number;
-  g: number;
-  b: number;
-}
-
-function toColor3(c: RGB): Color3 {
-  return new Color3(c.r, c.g, c.b);
-}
-
-function createEmissiveMaterial(
-  name: string,
-  color: RGB,
-  scene: Scene,
-  opts?: {
-    fresnel?: boolean;
-    backFaceCulling?: boolean;
-    alpha?: number;
-  },
-): StandardMaterial {
-  const mat = new StandardMaterial(name, scene);
-  mat.diffuseColor = Color3.Black();
-  mat.specularColor = Color3.Black();
-  mat.emissiveColor = toColor3(color);
-  mat.backFaceCulling = opts?.backFaceCulling ?? true;
-
-  if (opts?.alpha !== undefined) {
-    mat.alpha = opts.alpha;
-  }
-
-  if (opts?.fresnel) {
-    mat.emissiveFresnelParameters = new FresnelParameters();
-    mat.emissiveFresnelParameters.bias = 0.6;
-    mat.emissiveFresnelParameters.power = 2;
-    mat.emissiveFresnelParameters.leftColor = toColor3(color);
-    mat.emissiveFresnelParameters.rightColor = Color3.Black();
-  }
-
-  return mat;
-}
-
-// ─── Material set ────────────────────────────────────────────
+// ─── Internal renderer MaterialSet ───────────────────────────
+// 8 materials needed by meshFactory / EntityPool / effects.
 
 export interface MaterialSet {
   lane: StandardMaterial;
@@ -70,37 +18,62 @@ export interface MaterialSet {
   killRing: StandardMaterial;
 }
 
-export function createMaterials(scene: Scene): MaterialSet {
+// ─── Bridge: Theme → MaterialSet ─────────────────────────────
+
+function toColor3(c: RGB): Color3 {
+  return new Color3(c.r, c.g, c.b);
+}
+
+/**
+ * Create the full internal MaterialSet from a Theme.
+ * Maps the theme's 5 materials → the renderer's 8 slots,
+ * plus derives tube and killRing materials from the palette.
+ */
+export function createMaterialSetFromTheme(
+  theme: Theme,
+  scene: Scene,
+): MaterialSet {
+  const tm = theme.createMaterials(scene);
+  const bg = theme.palette.background;
+
+  // Tube: derived from background color, semi-transparent, inside-visible
+  const tube = new StandardMaterial("mat_tube", scene);
+  tube.diffuseColor = Color3.Black();
+  tube.specularColor = Color3.Black();
+  tube.emissiveColor = toColor3({ r: bg.r + 0.02, g: bg.g + 0.03, b: bg.b + 0.05 });
+  tube.backFaceCulling = false;
+  tube.alpha = 0.3;
+
+  // Kill ring: bright white emissive
+  const killRing = new StandardMaterial("mat_killRing", scene);
+  killRing.diffuseColor = Color3.Black();
+  killRing.specularColor = Color3.Black();
+  killRing.emissiveColor = new Color3(1, 1, 1);
+
   return {
-    lane: createEmissiveMaterial("mat_lane", COLOR_LANE, scene),
-    player: createEmissiveMaterial("mat_player", COLOR_PLAYER, scene, {
-      fresnel: true,
-    }),
-    bullet: createEmissiveMaterial("mat_bullet", COLOR_BULLET, scene),
-    enemyRunner: createEmissiveMaterial(
-      "mat_enemy_runner",
-      COLOR_ENEMY_RUNNER,
-      scene,
-      { fresnel: true },
-    ),
-    enemyDrifter: createEmissiveMaterial(
-      "mat_enemy_drifter",
-      COLOR_ENEMY_DRIFTER,
-      scene,
-      { fresnel: true },
-    ),
-    enemyCharger: createEmissiveMaterial(
-      "mat_enemy_charger",
-      COLOR_ENEMY_CHARGER,
-      scene,
-      { fresnel: true },
-    ),
-    tube: createEmissiveMaterial("mat_tube", COLOR_TUBE, scene, {
-      backFaceCulling: false,
-      alpha: 0.3,
-    }),
-    killRing: createEmissiveMaterial("mat_kill_ring", COLOR_KILL_RING, scene),
+    lane: tm.laneMat,
+    player: tm.playerMat,
+    bullet: tm.bulletMat,
+    enemyRunner: tm.enemyMatA,  // Runner → enemyA
+    enemyDrifter: tm.enemyMatB, // Drifter → enemyB
+    enemyCharger: tm.enemyMatA, // Charger → enemyA (shares with Runner)
+    tube,
+    killRing,
   };
+}
+
+/**
+ * Dispose all materials in a MaterialSet.
+ * Safe to call even if some materials are shared (Babylon handles it).
+ */
+export function disposeMaterialSet(materials: MaterialSet): void {
+  const disposed = new Set<StandardMaterial>();
+  for (const mat of Object.values(materials)) {
+    if (!disposed.has(mat)) {
+      mat.dispose();
+      disposed.add(mat);
+    }
+  }
 }
 
 export function getEnemyMaterial(
